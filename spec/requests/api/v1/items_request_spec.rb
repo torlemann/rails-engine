@@ -1,10 +1,13 @@
 require 'rails_helper'
 
 RSpec.describe 'Items API' do 
-  it 'sends a list of all items' do 
-    merchant_1 = create(:merchant)
+    before :each do
+        @merchant_1 = create(:merchant)
+    end
+
+    it 'sends a list of all items' do 
     merchant_2 = create(:merchant)
-    create_list(:item, 3, merchant_id: merchant_1.id)
+    create_list(:item, 3, merchant_id: @merchant_1.id)
     create_list(:item, 3, merchant_id: merchant_2.id)
 
     get '/api/v1/items'
@@ -24,8 +27,7 @@ RSpec.describe 'Items API' do
   end 
 
   it 'can get one item by its id' do 
-    merchant = create(:merchant)
-    item = create(:item, merchant_id: merchant.id)
+    item = create(:item, merchant_id: @merchant_1.id)
 
     get "/api/v1/items/#{item.id}"
 
@@ -47,12 +49,11 @@ RSpec.describe 'Items API' do
   end 
 
   it 'can create an item' do 
-    merchant = create(:merchant)
     item_params = ({
       name: 'this is an item',
       description: 'hopefully this item is being created',
       unit_price: 2.5,
-      merchant_id: merchant.id
+      merchant_id: @merchant_1.id
     })
 
     headers = {"CONTENT_TYPE" => "application/json"}
@@ -67,21 +68,50 @@ RSpec.describe 'Items API' do
   end 
 
   it 'can edit an existing item' do 
-    merchant = create(:merchant)
-    item = create(:item, merchant_id: merchant.id)
+    item = create(:item, merchant_id: @merchant_1.id)
 
     old_name = item.name
     item_params = {
       name: 'A new name', 
-      merchant_id: merchant.id
+      merchant_id: @merchant_1.id
     }
 
     headers = {"CONTENT_TYPE" => "application/json"}
     patch "/api/v1/items/#{item.id}", headers: headers, params: JSON.generate(item: item_params)
-    item = Item.find_by(id: item.id)
+    item = Item.last
 
     expect(response).to be_successful
     expect(item.name).to_not eq(old_name)
     expect(item.name).to eq("A new name")
   end 
+
+  it 'can delete an item' do 
+    item = create(:item, merchant_id: @merchant_1.id)
+
+    expect(Item.count).to eq(1)
+    delete "/api/v1/items/#{item.id}"
+
+    expect(response).to be_successful
+    expect(Item.count).to eq(0)
+    expect{Item.find(item.id)}.to raise_error(ActiveRecord::RecordNotFound)
+  end 
+
+  it "can return the merchant for a given item" do
+    merchant = create(:merchant)
+    item = create(:item, merchant_id: merchant.id)
+    
+    get "/api/v1/items/#{item.id}/merchant"
+
+    merchant = JSON.parse(response.body, symbolize_names: true)
+
+    expect(response).to be_successful
+    expect(merchant[:data]).to have_key(:id)
+    expect(merchant[:data][:id]).to be_an String 
+
+    expect(merchant[:data]).to have_key(:attributes)
+    expect(merchant[:data][:attributes]).to be_a Hash
+    
+    expect(merchant[:data][:attributes]).to have_key(:name)
+    expect(merchant[:data][:attributes][:name]).to be_an String
+  end
 end 
